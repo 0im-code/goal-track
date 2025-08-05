@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Advanced Goal Tracker</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    table, td, th { border: 1px solid black; border-collapse: collapse; }
+    th, td { padding: 5px; text-align: center; }
+    .done { background-color: #c8f7c5; }
+    .notdone { background-color: #f7c5c5; }
+    .alert { background-color: #ffe0e0; }
+    select, input, button, textarea { margin: 5px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h1>Advanced Goal Tracker</h1>
+
+  <label>Track by:</label>
+  <select id="trackMode" onchange="renderTable()">
+    <option value="day">Day</option>
+    <option value="week">Week</option>
+    <option value="month" selected>Month</option>
+    <option value="year">Year</option>
+  </select>
+
+  <label>Start:</label>
+  <input type="month" id="startDate" value="2025-01" onchange="renderTable()">
+  <label>End:</label>
+  <input type="month" id="endDate" value="2025-08" onchange="renderTable()">
+
+  <input type="text" id="newGoalInput" placeholder="Enter a goal">
+  <input type="text" id="peopleInput" placeholder="People (comma-separated)">
+  <input type="number" id="targetInput" placeholder="Target count">
+  <textarea id="noteInput" placeholder="Goal notes"></textarea>
+  <button onclick="addGoal()">Add Goal</button>
+
+  <div id="trackerTable"></div>
+  <canvas id="summaryChart" height="150"></canvas>
+
+  <script>
+    let goals = JSON.parse(localStorage.getItem("goals") || "[]");
+    let progress = JSON.parse(localStorage.getItem("progress") || "{}");
+
+    function saveData() {
+      localStorage.setItem("goals", JSON.stringify(goals));
+      localStorage.setItem("progress", JSON.stringify(progress));
+    }
+
+    function addGoal() {
+      const name = document.getElementById("newGoalInput").value.trim();
+      const people = document.getElementById("peopleInput").value.trim().split(",").map(p => p.trim());
+      const target = parseInt(document.getElementById("targetInput").value.trim()) || 0;
+      const note = document.getElementById("noteInput").value.trim();
+      if (!name || people.length === 0) return;
+      goals.push({ name, people, target, note });
+      saveData();
+      renderTable();
+      document.getElementById("newGoalInput").value = "";
+      document.getElementById("peopleInput").value = "";
+      document.getElementById("targetInput").value = "";
+      document.getElementById("noteInput").value = "";
+    }
+
+    function deleteGoal(index) {
+      if (confirm("Delete this goal?")) {
+        goals.splice(index, 1);
+        Object.keys(progress).forEach(key => {
+          if (key.startsWith(index + "-")) delete progress[key];
+        });
+        const newProgress = {};
+        Object.keys(progress).forEach(key => {
+          const parts = key.split("-");
+          const goalIdx = parseInt(parts[0]);
+          if (goalIdx > index) {
+            const newKey = (goalIdx - 1) + "-" + parts.slice(1).join("-");
+            newProgress[newKey] = progress[key];
+          } else {
+            newProgress[key] = progress[key];
+          }
+        });
+        progress = newProgress;
+        saveData();
+        renderTable();
+      }
+    }
+
+    function getDateUnits(trackMode, startDate, endDate) {
+      const units = [];
+      const start = new Date(startDate + "-01");
+      const end = new Date(endDate + "-01");
+      let current = new Date(start);
+
+      while (current <= end) {
+        const year = current.getFullYear();
+        const month = String(current.getMonth() + 1).padStart(2, "0");
+        const dateKey = {
+          day: `${year}-${month}-01`,
+          week: `${year}-W${Math.ceil(current.getDate() / 7)}`,
+          month: `${year}-${month}`,
+          year: `${year}`
+        }[document.getElementById("trackMode").value];
+        if (!units.includes(dateKey)) units.push(dateKey);
+
+        if (trackMode === "year") {
+          current.setFullYear(current.getFullYear() + 1);
+        } else if (trackMode === "month") {
+          current.setMonth(current.getMonth() + 1);
+        } else {
+          current.setDate(current.getDate() + 1);
+        }
+      }
+
+      return units;
+    }
+
+    function toggleProgress(goalIndex, unit) {
+      const key = `${goalIndex}-${unit}`;
+      progress[key] = progress[key] === true ? false : true;
+      saveData();
+      renderTable();
+    }
+
+    function renderTable() {
+      const trackMode = document.getElementById("trackMode").value;
+      const start = document.getElementById("startDate").value;
+      const end = document.getElementById("endDate").value;
+      const units = getDateUnits(trackMode, start, end);
+
+      let html = "<table><tr><th>Goal</th><th>People</th><th>Target</th><th>Note</th><th>Delete</th>";
+      units.forEach(u => html += `<th>${u}</th>`);
+      html += `<th>%</th><th>Avg</th></tr>`;
+
+      goals.forEach((g, i) => {
+        let done = 0;
+        let total = units.length;
+        html += `<tr${checkAlert(i, units) ? ' class="alert"' : ''}><td>${g.name}</td>`;
+        html += `<td>${g.people.join(", ")}</td>`;
+        html += `<td>${g.target || ""}</td>`;
+        html += `<td>${g.note || ""}</td>`;
+        html += `<td><button onclick="deleteGoal(${i})">🗑</button></td>`;
+        units.forEach(u => {
+          const key = `${i}-${u}`;
+          const isDone = progress[key];
+          if (isDone) done++;
+          html += `<td class="${isDone ? 'done' : 'notdone'}" onclick="toggleProgress(${i}, '${u}')">${isDone ? '✔' : '✘'}</td>`;
+        });
+        const percent = total ? Math.round((done / total) * 100) : 0;
+        const avg = g.target ? Math.round((done / g.target) * 100) : "—";
+        html += `<td>${percent}%</td><td>${avg}%</td></tr>`;
+      });
+
+      html += "</table>";
+      document.getElementById("trackerTable").innerHTML = html;
+      renderChart(goals, trackMode, start, end);
+    }
+
+    function checkAlert(goalIndex, units) {
+      const lastUnit = units[units.length - 1];
+      const recentKey = `${goalIndex}-${lastUnit}`;
+      return !progress[recentKey];
+    }
+
+    function renderChart(goalList, trackMode, start, end) {
+      const ctx = document.getElementById("summaryChart").getContext("2d");
+      if (window.chartInstance) {
+        window.chartInstance.destroy();
+      }
+
+      const units = getDateUnits(trackMode, start, end);
+
+      const labels = goalList.map(g => g.name);
+      const data = goalList.map((g, i) => {
+        let done = 0;
+        for (let u of units) {
+          if (progress[`${i}-${u}`]) done++;
+        }
+        return Math.round((done / units.length) * 100);
+      });
+
+      window.chartInstance = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Goal Completion %",
+            data,
+            backgroundColor: "rgba(54, 162, 235, 0.7)"
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          scales: {
+            x: { max: 100, title: { display: true, text: "%" } }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ctx.raw + "%" } }
+          }
+        }
+      });
+    }
+
+    renderTable();
+  </script>
+</body>
+</html>
+
