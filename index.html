@@ -49,13 +49,24 @@
 
     function addGoal() {
       const name = document.getElementById("newGoalInput").value.trim();
-      const people = document.getElementById("peopleInput").value.trim().split(",").map(p => p.trim());
+      const peopleInput = document.getElementById("peopleInput").value.trim();
+      const people = peopleInput ? peopleInput.split(",").map(p => p.trim()) : [];
       const target = parseInt(document.getElementById("targetInput").value.trim()) || 0;
       const note = document.getElementById("noteInput").value.trim();
-      if (!name || people.length === 0) return;
+
+      if (!name) {
+        alert("Please enter a goal name.");
+        return;
+      }
+      if (people.length === 0 || people[0] === "") {
+        alert("Please enter at least one person.");
+        return;
+      }
+
       goals.push({ name, people, target, note });
       saveData();
       renderTable();
+
       document.getElementById("newGoalInput").value = "";
       document.getElementById("peopleInput").value = "";
       document.getElementById("targetInput").value = "";
@@ -168,7 +179,6 @@
       }
 
       const units = getDateUnits(trackMode, start, end);
-
       const labels = goalList.map(g => g.name);
       const data = goalList.map((g, i) => {
         let done = 0;
@@ -205,4 +215,3 @@
   </script>
 </body>
 </html>
-
