@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Goal Tracker</title>
+  <title>advanced Goal Tracker</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
     table, td, th { border: 1px solid black; border-collapse: collapse; }
@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h1>Advanced Goal Tracker</h1>
+  <h1>Goal Tracker</h1>
 
   <label>Track by:</label>
   <select id="trackMode" onchange="renderTable()">
@@ -48,17 +48,26 @@
     }
 
     function addGoal() {
-      const name = document.getElementById("newGoalInput").value.trim();
-      const peopleInput = document.getElementById("peopleInput").value.trim();
+      const nameBox = document.getElementById("newGoalInput");
+      const peopleBox = document.getElementById("peopleInput");
+
+      if (!nameBox || !peopleBox) {
+        alert("Some input boxes are missing!");
+        return;
+      }
+
+      const name = nameBox.value.trim();
+      const peopleInput = peopleBox.value.trim();
       const people = peopleInput ? peopleInput.split(",").map(p => p.trim()) : [];
-      const target = parseInt(document.getElementById("targetInput").value.trim()) || 0;
-      const note = document.getElementById("noteInput").value.trim();
+      const target = parseInt(document.getElementById("targetInput")?.value || "0");
+      const note = document.getElementById("noteInput")?.value.trim() || "";
 
       if (!name) {
         alert("Please enter a goal name.");
         return;
       }
-      if (people.length === 0 || people[0] === "") {
+
+      if (!people.length || people[0] === "") {
         alert("Please enter at least one person.");
         return;
       }
@@ -67,10 +76,10 @@
       saveData();
       renderTable();
 
-      document.getElementById("newGoalInput").value = "";
-      document.getElementById("peopleInput").value = "";
-      document.getElementById("targetInput").value = "";
-      document.getElementById("noteInput").value = "";
+      nameBox.value = "";
+      peopleBox.value = "";
+      if (document.getElementById("targetInput")) document.getElementById("targetInput").value = "";
+      if (document.getElementById("noteInput")) document.getElementById("noteInput").value = "";
     }
 
     function deleteGoal(index) {
