@@ -32,7 +32,7 @@
 </head>
 <body>
 <header>
-  <h1>Goal Tracker</h1>
+  <h1></h1>Goal Tracker</h1>
   <div>
     <button class="brand" onclick="toggleDark()">🌙/☀️</button>
     <button class="brand" onclick="exportData()">Export</button>
@@ -86,23 +86,19 @@
 </div>
 
 <div id="trackerTable"></div>
-<div class="controls muted" id="summaryStats"></div>
 
 <script>
   let goals = JSON.parse(localStorage.getItem("goals") || "[]");
   let progress = JSON.parse(localStorage.getItem("progress") || "{}");
-  let lastDeleted = null;
 
-  // Load saved settings
   function loadSavedSettings(){
     ["rangeLength","trackMode","sortMode","yearSelect","monthSelect","personFilter"].forEach(id=>{
-      const saved = localStorage.getItem(id);
-      if(saved!==null) document.getElementById(id).value = saved;
+      const saved=localStorage.getItem(id);
+      if(saved!==null) document.getElementById(id).value=saved;
     });
     if(localStorage.getItem("darkMode")==="1") document.body.classList.add("dark");
   }
 
-  // Save everything
   function saveData(){
     localStorage.setItem("goals", JSON.stringify(goals));
     localStorage.setItem("progress", JSON.stringify(progress));
@@ -128,19 +124,9 @@
   }
 
   function deleteGoal(index){
-    lastDeleted={index,item:goals[index],snapshot:JSON.stringify(progress)};
-    for(let key in progress){ if(progress[key][index]) progress[key].splice(index,1);}
+    for(let key in progress){ if(progress[key][index]) progress[key].splice(index,1); }
     goals.splice(index,1);
     saveData(); renderTable();
-    document.getElementById("summaryStats").innerHTML=`Deleted “${lastDeleted.item.name}”. <button class="brand" onclick="undoDelete()">Undo</button>`;
-  }
-  function undoDelete(){
-    if(!lastDeleted) return;
-    goals.splice(lastDeleted.index,0,lastDeleted.item);
-    progress=JSON.parse(lastDeleted.snapshot);
-    lastDeleted=null;
-    saveData(); renderTable();
-    document.getElementById("summaryStats").textContent="Undo complete.";
   }
 
   function editGoal(index){
@@ -187,6 +173,7 @@
     a.download="kidzgoal-backup.json"; a.click();
     URL.revokeObjectURL(a.href);
   }
+
   function importData(e){
     const file=e.target.files[0]; if(!file) return;
     const reader=new FileReader();
