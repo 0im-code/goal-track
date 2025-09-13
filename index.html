@@ -1,30 +1,332 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Catch the Square!</title>
+  <meta charset="utf-8" />
+  <title>Catch the Square — Plus Mode</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { margin:0; overflow:hidden; background:#222; }
-    #player {
-      width:50px; height:50px;
-      background:red;
-      position:absolute; top:200px; left:200px;
+    :root { --bg:#181a1b; --ui:#222629; --text:#e9eef1; --good:#39d353; --bad:#ff4d4f; --accent:#5aa9ff; }
+    * { box-sizing: border-box; user-select: none; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif; height:100vh; display:flex; align-items:center; justify-content:center; }
+    #gameWrap { width:min(900px, 96vw); }
+    #hud { display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    #stats { display:flex; gap:12px; flex-wrap:wrap; }
+    .pill { background:var(--ui); padding:8px 12px; border-radius:999px; border:1px solid #2b2f33; }
+    #board { position:relative; background:#0f1112; border:2px solid #2b2f33; border-radius:14px; height:min(560px, 70vh); overflow:hidden; }
+    .square { position:absolute; width:40px; height:40px; border-radius:8px; }
+    #player { background: var(--accent); }
+    #target { background: var(--good); }
+    .hazard { background: var(--bad); }
+    #overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); color:#fff; text-align:center; padding:24px; }
+    #overlay.show { display:flex; }
+    #overlay .card { background:#1e2124; border:1px solid #2b2f33; border-radius:16px; padding:22px; width:min(420px,90%); }
+    #overlay h1 { margin:0 0 6px 0; font-size:28px; }
+    #overlay p { margin:6px 0 14px 0; opacity:.9 }
+    button { background:#1e6bff; color:#fff; border:none; padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer; }
+    button.secondary { background:var(--ui); color:var(--text); border:1px solid #2b2f33; }
+    #controls { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+    .btn { background:var(--ui); border:1px solid #2b2f33; color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; }
+    /* Mobile d-pad */
+    #pad { display:none; position:absolute; left:10px; bottom:10px; gap:8px; }
+    .padRow { display:flex; gap:8px; justify-content:center; }
+    .padBtn { width:52px; height:52px; border-radius:12px; background:#222; border:1px solid #2b2f33; display:flex; align-items:center; justify-content:center; font-weight:700; }
+    @media (max-width: 900px) {
+      #pad { display:flex; flex-direction:column; }
     }
   </style>
 </head>
 <body>
-  <div id="player"></div>
-  <script>
-    const player = document.getElementById("player");
-    let x = 200, y = 200, speed = 10;
+  <div id="gameWrap">
+    <div id="hud">
+      <div id="stats">
+        <span class="pill">Score: <b id="score">0</b></span>
+        <span class="pill">Level: <b id="level">1</b></span>
+        <span class="pill">Lives: <b id="lives">3</b></span>
+        <span class="pill">Time: <b id="time">60</b>s</span>
+      </div>
+      <div id="controls">
+        <button id="btnPause" class="secondary">⏸ Pause</button>
+        <button id="btnRestart">🔁 Restart</button>
+      </div>
+    </div>
 
-    document.addEventListener("keydown", (e) => {
-      if(e.key==="ArrowUp") y -= speed;
-      if(e.key==="ArrowDown") y += speed;
-      if(e.key==="ArrowLeft") x -= speed;
-      if(e.key==="ArrowRight") x += speed;
-      player.style.left = x+"px";
-      player.style.top = y+"px";
+    <div id="board">
+      <div id="player" class="square"></div>
+      <div id="target" class="square"></div>
+      <!-- hazards will be injected -->
+      <div id="pad">
+        <div class="padRow"><div class="padBtn" data-dir="up">▲</div></div>
+        <div class="padRow">
+          <div class="padBtn" data-dir="left">◀</div>
+          <div class="padBtn" data-dir="down">▼</div>
+          <div class="padBtn" data-dir="right">▶</div>
+        </div>
+      </div>
+      <div id="overlay">
+        <div class="card">
+          <h1 id="ovTitle">Paused</h1>
+          <p id="ovMsg">Press Resume to continue.</p>
+          <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
+            <button id="ovPrimary">Resume</button>
+            <button id="ovRestart" class="secondary">Restart</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p style="opacity:.7; margin-top:8px;">
+      🔧 Controls: WASD / Arrow Keys, or tap the on-screen pad (mobile). Catch the 🟩 green square, avoid the 🔴 hazards.  
+      Survive the timer. Score increases your level; higher levels = faster hazards.
+    </p>
+  </div>
+
+  <script>
+  (() => {
+    // --- DOM ---
+    const board = document.getElementById('board');
+    const playerEl = document.getElementById('player');
+    const targetEl = document.getElementById('target');
+    const scoreEl = document.getElementById('score');
+    const levelEl = document.getElementById('level');
+    const livesEl = document.getElementById('lives');
+    const timeEl  = document.getElementById('time');
+    const btnPause = document.getElementById('btnPause');
+    const btnRestart = document.getElementById('btnRestart');
+    const overlay = document.getElementById('overlay');
+    const ovTitle = document.getElementById('ovTitle');
+    const ovMsg = document.getElementById('ovMsg');
+    const ovPrimary = document.getElementById('ovPrimary');
+    const ovRestart = document.getElementById('ovRestart');
+
+    // --- Game State ---
+    const S = {
+      w: 0, h: 0,
+      px: 100, py: 100, size: 40,
+      tx: 300, ty: 300,
+      hazards: [],
+      keys: new Set(),
+      score: 0, level: 1, lives: 3,
+      timeLeft: 60,
+      speed: 260,             // player px/sec
+      running: true,
+      lastTime: performance.now(),
+    };
+
+    // --- Audio (beeps only, no files) ---
+    const AC = new (window.AudioContext || window.webkitAudioContext)();
+    function beep(freq=600, dur=0.08, type='square', vol=0.08) {
+      const o = AC.createOscillator(); const g = AC.createGain();
+      o.type = type; o.frequency.value = freq;
+      g.gain.value = vol; o.connect(g); g.connect(AC.destination);
+      o.start();
+      setTimeout(()=>{ o.stop(); }, dur*1000);
+    }
+
+    // --- Helpers ---
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    function rand(min, max){ return Math.random()*(max-min)+min; }
+    function placeAtGridFree(size){
+      const pad = 8;
+      return {
+        x: rand(pad, S.w - size - pad),
+        y: rand(pad, S.h - size - pad)
+      };
+    }
+
+    // Hazard factory
+    function newHazard(speedMul=1) {
+      const el = document.createElement('div');
+      el.className = 'square hazard';
+      board.appendChild(el);
+      const pos = placeAtGridFree(S.size);
+      const vx = (Math.random()<0.5?-1:1) * rand(80,140) * speedMul;
+      const vy = (Math.random()<0.5?-1:1) * rand(80,140) * speedMul;
+      return { el, x: pos.x, y: pos.y, vx, vy, size: S.size };
+    }
+
+    function resetGame() {
+      // Clear hazards
+      S.hazards.forEach(h => h.el.remove());
+      S.hazards = [];
+      S.score = 0; S.level = 1; S.lives = 3; S.timeLeft = 60;
+      S.px = 100; S.py = 100;
+      const t = placeAtGridFree(S.size);
+      S.tx = t.x; S.ty = t.y;
+      for (let i=0;i<3;i++) S.hazards.push(newHazard(1));
+      updateHUD();
+      layout();
+      resume();
+      beep(700, .06);
+    }
+
+    function updateHUD(){
+      scoreEl.textContent = S.score;
+      levelEl.textContent = S.level;
+      livesEl.textContent = S.lives;
+      timeEl.textContent  = Math.max(0, Math.ceil(S.timeLeft));
+    }
+
+    function layout(){
+      const rect = board.getBoundingClientRect();
+      S.w = rect.width; S.h = rect.height;
+      // clamp entities inside
+      S.px = clamp(S.px, 0, S.w - S.size);
+      S.py = clamp(S.py, 0, S.h - S.size);
+      S.tx = clamp(S.tx, 0, S.w - S.size);
+      S.ty = clamp(S.ty, 0, S.h - S.size);
+      // paint
+      playerEl.style.transform = `translate(${S.px}px, ${S.py}px)`;
+      targetEl.style.transform = `translate(${S.tx}px, ${S.ty}px)`;
+      S.hazards.forEach(h => {
+        h.x = clamp(h.x, 0, S.w - h.size);
+        h.y = clamp(h.y, 0, S.h - h.size);
+        h.el.style.transform = `translate(${h.x}px, ${h.y}px)`;
+      });
+    }
+
+    // --- Input ---
+    const keyMap = {
+      ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
+      w:'up', s:'down', a:'left', d:'right'
+    };
+    window.addEventListener('keydown', (e)=>{
+      if (keyMap[e.key]) S.keys.add(keyMap[e.key]);
+      if (e.key === 'Escape') togglePause();
     });
+    window.addEventListener('keyup', (e)=>{
+      if (keyMap[e.key]) S.keys.delete(keyMap[e.key]);
+    });
+
+    // Mobile pad
+    document.querySelectorAll('.padBtn').forEach(btn=>{
+      const dir = btn.dataset.dir;
+      const down = ()=>S.keys.add(dir);
+      const up = ()=>S.keys.delete(dir);
+      btn.addEventListener('pointerdown', down);
+      btn.addEventListener('pointerup', up);
+      btn.addEventListener('pointerleave', up);
+      btn.addEventListener('pointercancel', up);
+    });
+
+    // --- Collisions ---
+    function hit(ax, ay, as, bx, by, bs){
+      return ax < bx+bs && ax+as > bx && ay < by+bs && ay+as > by;
+    }
+
+    function onCatchTarget(){
+      S.score += 10;
+      beep(900, .06); beep(1100, .06);
+      const t = placeAtGridFree(S.size);
+      S.tx = t.x; S.ty = t.y;
+
+      // Level up every 30 points
+      const newLevel = Math.floor(S.score/30)+1;
+      if (newLevel > S.level){
+        S.level = newLevel;
+        // Add a new hazard and speed up existing a bit
+        S.hazards.push(newHazard(1 + (S.level-1)*0.15));
+        S.hazards.forEach(h => { h.vx *= 1.05; h.vy *= 1.05; });
+        // bonus time
+        S.timeLeft = Math.min(120, S.timeLeft + 5);
+      }
+      updateHUD();
+    }
+
+    function onHitHazard(){
+      if (!S.running) return;
+      S.lives -= 1;
+      beep(200, .12, 'sawtooth', 0.1);
+      // knockback + brief invuln (simple: move player to safe corner)
+      S.px = 10; S.py = 10;
+      if (S.lives <= 0){
+        lose();
+      } else {
+        updateHUD();
+      }
+    }
+
+    // --- Game Loop ---
+    function tick(now){
+      if (!S.running){ S.lastTime = now; requestAnimationFrame(tick); return; }
+      const dt = Math.min(0.033, (now - S.lastTime)/1000);
+      S.lastTime = now;
+
+      // timer
+      S.timeLeft -= dt;
+      if (S.timeLeft <= 0){ win(); }
+
+      // move player
+      let dx = 0, dy = 0;
+      if (S.keys.has('up')) dy -= 1;
+      if (S.keys.has('down')) dy += 1;
+      if (S.keys.has('left')) dx -= 1;
+      if (S.keys.has('right')) dx += 1;
+      if (dx || dy){
+        const len = Math.hypot(dx,dy) || 1;
+        S.px += (dx/len) * S.speed * dt;
+        S.py += (dy/len) * S.speed * dt;
+      }
+      S.px = clamp(S.px, 0, S.w - S.size);
+      S.py = clamp(S.py, 0, S.h - S.size);
+
+      // move hazards + bounce off walls
+      S.hazards.forEach(h=>{
+        h.x += h.vx * dt; h.y += h.vy * dt;
+        if (h.x < 0){ h.x=0; h.vx *= -1; }
+        if (h.y < 0){ h.y=0; h.vy *= -1; }
+        if (h.x > S.w - h.size){ h.x = S.w - h.size; h.vx *= -1; }
+        if (h.y > S.h - h.size){ h.y = S.h - h.size; h.vy *= -1; }
+      });
+
+      // collisions
+      if (hit(S.px,S.py,S.size, S.tx,S.ty,S.size)) onCatchTarget();
+      for (const h of S.hazards){
+        if (hit(S.px,S.py,S.size, h.x,h.y,h.size)){ onHitHazard(); break; }
+      }
+
+      // paint
+      updateHUD();
+      layout();
+
+      requestAnimationFrame(tick);
+    }
+
+    function pauseUI(title, msg, primaryLabel='Resume'){
+      ovTitle.textContent = title;
+      ovMsg.textContent = msg;
+      ovPrimary.textContent = primaryLabel;
+      overlay.classList.add('show');
+    }
+    function closeOverlay(){ overlay.classList.remove('show'); }
+
+    function pause(){ S.running = false; btnPause.textContent = '▶ Resume'; pauseUI('Paused','Take a breather.'); }
+    function resume(){ S.running = true; btnPause.textContent = '⏸ Pause'; closeOverlay(); }
+    function togglePause(){ S.running ? pause() : resume(); }
+
+    function win(){
+      S.running = false;
+      beep(880,.08); beep(1180,.08); beep(1480,.12);
+      pauseUI('You Win! 🏆', `Score: ${S.score}  •  Level: ${S.level}`, 'Play Again');
+    }
+    function lose(){
+      S.running = false;
+      beep(140,.14); beep(110,.18);
+      pauseUI('Game Over 💀', `Score: ${S.score}  •  Level: ${S.level}`, 'Try Again');
+    }
+
+    // --- Events ---
+    btnPause.addEventListener('click', togglePause);
+    btnRestart.addEventListener('click', resetGame);
+    ovPrimary.addEventListener('click', ()=>{ closeOverlay(); resetGame(); });
+    ovRestart.addEventListener('click', resetGame);
+    window.addEventListener('resize', layout);
+
+    // --- Boot ---
+    layout();
+    resetGame();
+    requestAnimationFrame((t)=>{ S.lastTime=t; tick(t); });
+  })();
   </script>
 </body>
 </html>
+
