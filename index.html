@@ -1,246 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<title>Goal Tracker</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<style>
-  :root {
-    --bg:#f9f9f9; --fg:#333; --card:#fff; --muted:#888;
-    --brand:#4CAF50; --brand2:#45a049; --ok:#c8f7c5; --bad:#f7c5c5; --bar:#4CAF50;
-    --border:#ddd; --head:#eee;
-  }
-  body.dark {
-    --bg:#111; --fg:#eee; --card:#1b1b1b; --muted:#aaa; --border:#2a2a2a; --head:#202020;
-  }
-  body { margin:0; font-family:Arial, sans-serif; background:var(--bg); color:var(--fg); }
-  header { background:var(--brand); color:#fff; padding:12px; display:flex; justify-content:space-between; align-items:center; }
-  header h1 { margin:0; font-size:18px; }
-  .controls { padding:10px; background:var(--card); border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
-  select,input,button { padding:6px 10px; font-size:14px; border:1px solid var(--border); border-radius:6px; }
-  button.brand { background:var(--brand); color:#fff; border:none; cursor:pointer; }
-  button.brand:hover { background:var(--brand2); }
-  table { width:100%; border-collapse:collapse; background:var(--card); }
-  th,td { border:1px solid var(--border); padding:6px; text-align:center; }
-  th { background:var(--head); position:sticky; top:50px; }
-  .done { background:var(--ok); }
-  .notdone { background:var(--bad); }
-  .muted { color:var(--muted); font-size:12px; }
-  .bar { height:8px; background:#ddd; border-radius:6px; overflow:hidden; }
-  .bar > span { display:block; height:100%; background:var(--bar); width:0%; }
-</style>
+  <title>Catch the Square!</title>
+  <style>
+    body { margin:0; overflow:hidden; background:#222; }
+    #player {
+      width:50px; height:50px;
+      background:red;
+      position:absolute; top:200px; left:200px;
+    }
+  </style>
 </head>
 <body>
-<header>
-  <h1></h1>Goal Tracker</h1>
-  <div>
-    <button class="brand" onclick="toggleDark()">🌙/☀️</button>
-    <button class="brand" onclick="exportData()">Export</button>
-    <input id="importFile" type="file" accept="application/json" style="display:none" onchange="importData(event)">
-    <button class="brand" onclick="document.getElementById('importFile').click()">Import</button>
-  </div>
-</header>
+  <div id="player"></div>
+  <script>
+    const player = document.getElementById("player");
+    let x = 200, y = 200, speed = 10;
 
-<div class="controls">
-  <label>Track:
-    <select id="trackMode" onchange="saveData(); renderTable()">
-      <option value="day">Day</option><option value="week">Week</option>
-      <option value="month">Month</option><option value="year">Year</option>
-    </select>
-  </label>
-  <label>How many:
-    <input type="number" id="rangeLength" value="7" min="1" max="365" onchange="saveData(); renderTable()">
-  </label>
-  <label>Sort:
-    <select id="sortMode" onchange="saveData(); renderTable()">
-      <option value="none">None</option><option value="day">Day</option>
-      <option value="week">Week</option><option value="month">Month</option>
-      <option value="year">Year</option>
-    </select>
-  </label>
-  <label>Year:
-    <input list="yearOptions" id="yearSelect" onchange="saveData(); renderTable()">
-    <datalist id="yearOptions"></datalist>
-  </label>
-  <label id="monthLabel">Month:
-    <select id="monthSelect" onchange="saveData(); renderTable()">
-      <option value="01">January</option><option value="02">February</option>
-      <option value="03">March</option><option value="04">April</option>
-      <option value="05">May</option><option value="06">June</option>
-      <option value="07">July</option><option value="08">August</option>
-      <option value="09">September</option><option value="10">October</option>
-      <option value="11">November</option><option value="12">December</option>
-    </select>
-  </label>
-  <label>Person:
-    <select id="personFilter" onchange="saveData(); renderTable()">
-      <option value="">All</option>
-    </select>
-  </label>
-</div>
-
-<div class="controls">
-  <input type="text" id="newGoalInput" placeholder="Enter a goal">
-  <input type="text" id="personInput" placeholder="Person">
-  <button class="brand" onclick="addGoal()">Add Goal</button>
-</div>
-
-<div id="trackerTable"></div>
-
-<script>
-  let goals = JSON.parse(localStorage.getItem("goals") || "[]");
-  let progress = JSON.parse(localStorage.getItem("progress") || "{}");
-
-  function loadSavedSettings(){
-    ["rangeLength","trackMode","sortMode","yearSelect","monthSelect","personFilter"].forEach(id=>{
-      const saved=localStorage.getItem(id);
-      if(saved!==null) document.getElementById(id).value=saved;
+    document.addEventListener("keydown", (e) => {
+      if(e.key==="ArrowUp") y -= speed;
+      if(e.key==="ArrowDown") y += speed;
+      if(e.key==="ArrowLeft") x -= speed;
+      if(e.key==="ArrowRight") x += speed;
+      player.style.left = x+"px";
+      player.style.top = y+"px";
     });
-    if(localStorage.getItem("darkMode")==="1") document.body.classList.add("dark");
-  }
-
-  function saveData(){
-    localStorage.setItem("goals", JSON.stringify(goals));
-    localStorage.setItem("progress", JSON.stringify(progress));
-    ["rangeLength","trackMode","sortMode","yearSelect","monthSelect","personFilter"].forEach(id=>{
-      localStorage.setItem(id, document.getElementById(id).value);
-    });
-    localStorage.setItem("darkMode", document.body.classList.contains("dark")?"1":"0");
-  }
-
-  function toggleDark(){
-    document.body.classList.toggle("dark");
-    saveData();
-  }
-
-  function addGoal(){
-    const name=document.getElementById("newGoalInput").value.trim();
-    const person=document.getElementById("personInput").value.trim();
-    if(!name||!person) return;
-    goals.push({name,person});
-    document.getElementById("newGoalInput").value="";
-    document.getElementById("personInput").value="";
-    saveData(); renderTable();
-  }
-
-  function deleteGoal(index){
-    for(let key in progress){ if(progress[key][index]) progress[key].splice(index,1); }
-    goals.splice(index,1);
-    saveData(); renderTable();
-  }
-
-  function editGoal(index){
-    const name=prompt("Rename goal:", goals[index].name);
-    if(name===null) return;
-    const person=prompt("Change person:", goals[index].person);
-    if(person===null) return;
-    goals[index].name=name.trim()||goals[index].name;
-    goals[index].person=person.trim()||goals[index].person;
-    saveData(); renderTable();
-  }
-
-  function toggleStatus(goalIndex, unitKey){
-    const mode=document.getElementById("trackMode").value;
-    const month=document.getElementById("monthSelect").value;
-    const year=document.getElementById("yearSelect").value;
-    const key=mode==="year"?`year-${unitKey}`:`${mode}-${year}-${month}`;
-    if(!progress[key]) progress[key]=[];
-    if(!progress[key][goalIndex]) progress[key][goalIndex]={};
-    const current=progress[key][goalIndex][unitKey];
-    progress[key][goalIndex][unitKey]= current==="✔" ? "✘" : current==="✘" ? "" : "✔";
-    saveData(); renderTable();
-  }
-
-  function getGoalPercent(index, mode, year, month){
-    let count=0,total=0;
-    for(let key in progress){
-      if(!progress[key][index]) continue;
-      if(!key.startsWith(mode)) continue;
-      if(!key.includes(year)) continue;
-      if(mode!=="year" && !key.includes(month)) continue;
-      for(let d in progress[key][index]){
-        if(progress[key][index][d]==="✔") count++;
-        total++;
-      }
-    }
-    return total? {percent:Math.round((count/total)*100),count,total}:{percent:0,count:0,total:0};
-  }
-
-  function exportData(){
-    const blob=new Blob([JSON.stringify({goals,progress},null,2)],{type:"application/json"});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download="kidzgoal-backup.json"; a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  function importData(e){
-    const file=e.target.files[0]; if(!file) return;
-    const reader=new FileReader();
-    reader.onload=()=>{
-      try{
-        const data=JSON.parse(reader.result);
-        if(data.goals&&data.progress){
-          goals=data.goals; progress=data.progress;
-          saveData(); renderTable();
-        } else alert("Invalid backup");
-      } catch{ alert("Could not read file"); }
-    };
-    reader.readAsText(file);
-  }
-
-  function renderTable(){
-    const mode=document.getElementById("trackMode").value;
-    const sort=document.getElementById("sortMode").value;
-    const person=document.getElementById("personFilter").value;
-    const month=document.getElementById("monthSelect").value;
-    const year=document.getElementById("yearSelect").value;
-    const range=parseInt(document.getElementById("rangeLength").value);
-    const tableDiv=document.getElementById("trackerTable");
-
-    const uniquePeople=[...new Set(goals.map(g=>g.person))];
-    const filter=document.getElementById("personFilter");
-    filter.innerHTML='<option value="">All</option>'+uniquePeople.map(p=>`<option value="${p}">${p}</option>`).join('');
-    filter.value=person;
-
-    let goalList=goals.map((g,i)=>({...g,index:i}));
-    if(person) goalList=goalList.filter(g=>g.person===person);
-    if(sort!=="none") goalList.sort((a,b)=>getGoalPercent(b.index,sort,year,month).percent - getGoalPercent(a.index,sort,year,month).percent);
-
-    let html="<table><thead><tr><th>Goal</th>";
-    let unitKeys=[];
-    if(mode==="day"){ const days=new Date(year,parseInt(month),0).getDate();
-      for(let d=1;d<=Math.min(range,days);d++){html+=`<th>${d}</th>`;unitKeys.push(d);}
-    } else if(mode==="week"){ for(let w=1;w<=Math.min(range,6);w++){html+=`<th>W${w}</th>`;unitKeys.push(`W${w}`);} }
-    else if(mode==="month"){ for(let m=1;m<=Math.min(range,12);m++){const mm=m.toString().padStart(2,'0'); html+=`<th>${mm}</th>`; unitKeys.push(mm);} }
-    else if(mode==="year"){ for(let y=0;y<range;y++){const yr=parseInt(year)+y; html+=`<th>${yr}</th>`; unitKeys.push(yr);} }
-    html+="<th>Progress</th><th>Edit</th><th>Delete</th></tr></thead><tbody>";
-
-    goalList.forEach(g=>{
-      html+=`<tr><td>${g.name} <small class="muted">(${g.person})</small></td>`;
-      unitKeys.forEach(k=>{
-        const key=mode==="year"?`year-${k}`:`${mode}-${year}-${month}`;
-        const val=(progress[key]&&progress[key][g.index]&&progress[key][g.index][k])||"";
-        const cls=val==="✔"?"done":val==="✘"?"notdone":"";
-        html+=`<td class="${cls}" onclick="toggleStatus(${g.index},'${k}')">${val}</td>`;
-      });
-      const {count,total,percent}=getGoalPercent(g.index, sort==="none"?mode:sort, year, month);
-      html+=`<td><div class="bar"><span style="width:${percent}%"></span></div><div class="muted">${count}/${total} (${percent}%)</div></td>`;
-      html+=`<td><button onclick="editGoal(${g.index})">✏️</button></td>`;
-      html+=`<td><button onclick="deleteGoal(${g.index})">🗑️</button></td></tr>`;
-    });
-    html+="</tbody></table>";
-    tableDiv.innerHTML=html;
-  }
-
-  (function init(){
-    const currentYear=new Date().getFullYear();
-    for(let y=2000;y<=currentYear+5;y++){
-      const opt=document.createElement("option"); opt.value=y;
-      document.getElementById("yearOptions").appendChild(opt);
-    }
-    loadSavedSettings(); renderTable();
-  })();
-</script>
+  </script>
 </body>
 </html>
