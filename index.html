@@ -1,75 +1,246 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Catch the siaguare(Fixed)</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Goal Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <style>
-:root{--bg:#17191a;--ui:#212426;--fg:#e8eef1;--good:#34d058;--bad:#ff4d4f;--accent:#5aa9ff}
-*{box-sizing:border-box;user-select:none}body{margin:0;background:var(--bg);color:var(--fg);font:600 14px/1.3 system-ui,Segoe UI,Roboto,Arial}
-#W{max-width:900px;margin:12px auto;padding:0 12px}#H{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin:6px 0 10px}
-.P{background:var(--ui);padding:6px 10px;border-radius:999px;border:1px solid #2a2e32}button{background:#1e6bff;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer}
-button.S{background:var(--ui);color:var(--fg);border:1px solid #2a2e32}
-#B{position:relative;height:min(560px,70vh);background:#0e1011;border:2px solid #2a2e32;border-radius:12px;overflow:hidden}
-.Q{position:absolute;width:40px;height:40px;border-radius:8px}#P{background:var(--accent)}#T{background:var(--good)}.H{background:var(--bad)}
-#O{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.55)}#C{background:#1b1f22;border:1px solid #2a2e32;border-radius:14px;padding:18px;min-width:260px;text-align:center}
-#Pad{display:none;position:absolute;left:10px;bottom:10px;gap:6px}.R{display:flex;gap:6px;justify-content:center}.K{width:50px;height:50px;display:grid;place-items:center;background:#222;border:1px solid #2a2e32;border-radius:10px}
-@media(max-width:900px){#Pad{display:flex;flex-direction:column}}
-</style></head><body>
-<div id="W">
-  <div id="H">
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <span class="P">Score: <b id="sc">0</b></span>
-      <span class="P">Level: <b id="lv">1</b></span>
-      <span class="P">Lives: <b id="li">3</b></span>
-      <span class="P">Time: <b id="tm">60</b>s</span>
-    </div>
-    <div style="display:flex;gap:6px">
-      <button id="pBtn" class="S">⏸ Pause</button><button id="rBtn">🔁 Restart</button>
-    </div>
+  :root {
+    --bg:#f9f9f9; --fg:#333; --card:#fff; --muted:#888;
+    --brand:#4CAF50; --brand2:#45a049; --ok:#c8f7c5; --bad:#f7c5c5; --bar:#4CAF50;
+    --border:#ddd; --head:#eee;
+  }
+  body.dark {
+    --bg:#111; --fg:#eee; --card:#1b1b1b; --muted:#aaa; --border:#2a2a2a; --head:#202020;
+  }
+  body { margin:0; font-family:Arial, sans-serif; background:var(--bg); color:var(--fg); }
+  header { background:var(--brand); color:#fff; padding:12px; display:flex; justify-content:space-between; align-items:center; }
+  header h1 { margin:0; font-size:18px; }
+  .controls { padding:10px; background:var(--card); border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  select,input,button { padding:6px 10px; font-size:14px; border:1px solid var(--border); border-radius:6px; }
+  button.brand { background:var(--brand); color:#fff; border:none; cursor:pointer; }
+  button.brand:hover { background:var(--brand2); }
+  table { width:100%; border-collapse:collapse; background:var(--card); }
+  th,td { border:1px solid var(--border); padding:6px; text-align:center; }
+  th { background:var(--head); position:sticky; top:50px; }
+  .done { background:var(--ok); }
+  .notdone { background:var(--bad); }
+  .muted { color:var(--muted); font-size:12px; }
+  .bar { height:8px; background:#ddd; border-radius:6px; overflow:hidden; }
+  .bar > span { display:block; height:100%; background:var(--bar); width:0%; }
+</style>
+</head>
+<body>
+<header>
+  <h1></h1>Goal Tracker</h1>
+  <div>
+    <button class="brand" onclick="toggleDark()">🌙/☀️</button>
+    <button class="brand" onclick="exportData()">Export</button>
+    <input id="importFile" type="file" accept="application/json" style="display:none" onchange="importData(event)">
+    <button class="brand" onclick="document.getElementById('importFile').click()">Import</button>
   </div>
+</header>
 
-  <div id="B">
-    <div id="P" class="Q"></div><div id="T" class="Q"></div>
-    <div id="Pad"><div class="R"><div class="K" data-d="up">▲</div></div><div class="R"><div class="K" data-d="left">◀</div><div class="K" data-d="down">▼</div><div class="K" data-d="right">▶</div></div></div>
-    <div id="O"><div id="C"><h2 id="oh" style="margin:4px 0">Paused</h2><p id="om" style="opacity:.9;margin:4px 0 10px"></p>
-      <div style="display:flex;gap:6px;justify-content:center"><button id="go">Play</button><button id="re" class="S">Restart</button></div>
-    </div></div>
-  </div>
-
-  <p style="opacity:.75;margin:8px 2px">WASD/Arrows or pad. Catch 🟩, dodge 🔴. Timer to win. Level-ups add/speed hazards.</p>
+<div class="controls">
+  <label>Track:
+    <select id="trackMode" onchange="saveData(); renderTable()">
+      <option value="day">Day</option><option value="week">Week</option>
+      <option value="month">Month</option><option value="year">Year</option>
+    </select>
+  </label>
+  <label>How many:
+    <input type="number" id="rangeLength" value="7" min="1" max="365" onchange="saveData(); renderTable()">
+  </label>
+  <label>Sort:
+    <select id="sortMode" onchange="saveData(); renderTable()">
+      <option value="none">None</option><option value="day">Day</option>
+      <option value="week">Week</option><option value="month">Month</option>
+      <option value="year">Year</option>
+    </select>
+  </label>
+  <label>Year:
+    <input list="yearOptions" id="yearSelect" onchange="saveData(); renderTable()">
+    <datalist id="yearOptions"></datalist>
+  </label>
+  <label id="monthLabel">Month:
+    <select id="monthSelect" onchange="saveData(); renderTable()">
+      <option value="01">January</option><option value="02">February</option>
+      <option value="03">March</option><option value="04">April</option>
+      <option value="05">May</option><option value="06">June</option>
+      <option value="07">July</option><option value="08">August</option>
+      <option value="09">September</option><option value="10">October</option>
+      <option value="11">November</option><option value="12">December</option>
+    </select>
+  </label>
+  <label>Person:
+    <select id="personFilter" onchange="saveData(); renderTable()">
+      <option value="">All</option>
+    </select>
+  </label>
 </div>
 
+<div class="controls">
+  <input type="text" id="newGoalInput" placeholder="Enter a goal">
+  <input type="text" id="personInput" placeholder="Person">
+  <button class="brand" onclick="addGoal()">Add Goal</button>
+</div>
+
+<div id="trackerTable"></div>
+
 <script>
-(()=>{const B=el('B'),P=el('P'),T=el('T'),scE=el('sc'),lvE=el('lv'),liE=el('li'),tmE=el('tm'),
-pBtn=el('pBtn'),rBtn=el('rBtn'),O=el('O'),oh=el('oh'),om=el('om'),go=el('go'),re=el('re');
-const S={w:0,h:0,s:40,px:100,py:100,tx:300,ty:300,H:[],score:0,lv:1,life:3,time:60,v:180,keys:new Set(),run:true,last:performance.now()};
-const AC=new (window.AudioContext||window.webkitAudioContext)();const beep=(f=750,d=.07,v=.06)=>{try{AC.resume()}catch{}const o=AC.createOscillator(),g=AC.createGain();o.type='square';o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(AC.destination);o.start();setTimeout(()=>o.stop(),d*1000)};
-const map={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'};
+  let goals = JSON.parse(localStorage.getItem("goals") || "[]");
+  let progress = JSON.parse(localStorage.getItem("progress") || "{}");
 
-window.addEventListener('keydown',e=>{if(map[e.key])S.keys.add(map[e.key]);if(e.key==='Escape')toggle()});
-window.addEventListener('keyup',e=>{if(map[e.key])S.keys.delete(map[e.key])});
-qsAll('.K').forEach(b=>{const d=b.dataset.d;['pointerdown','pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,ev.includes('down')?()=>S.keys.add(d):()=>S.keys.delete(d)))});
-pBtn.onclick=toggle;rBtn.onclick=reset;go.onclick=()=>{O.style.display='none';reset()};re.onclick=reset;window.addEventListener('resize',layout);
+  function loadSavedSettings(){
+    ["rangeLength","trackMode","sortMode","yearSelect","monthSelect","personFilter"].forEach(id=>{
+      const saved=localStorage.getItem(id);
+      if(saved!==null) document.getElementById(id).value=saved;
+    });
+    if(localStorage.getItem("darkMode")==="1") document.body.classList.add("dark");
+  }
 
-function el(id){return document.getElementById(id)}function qsAll(s){return document.querySelectorAll(s)}
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),rnd=(a,b)=>Math.random()*(b-a)+a,box=(x,y)=>`translate(${x}px,${y}px)`;
-const place=()=>({x:rnd(8,S.w-S.s-8),y:rnd(8,S.h-S.s-8)}),hit=(ax,ay,as,bx,by,bs)=>ax<bx+bs&&ax+as>bx&&ay<by+bs&&ay+as>by;
-function hazard(m=1){const e=document.createElement('div');e.className='Q H';B.appendChild(e);const p=place(),vx=(Math.random()<.5?-1:1)*rnd(90,140)*m,vy=(Math.random()<.5?-1:1)*rnd(90,140)*m;return{e,x:p.x,y:p.y,vx,vy,s:S.s}}
-function hud(){scE.textContent=S.score;lvE.textContent=S.lv;liE.textContent=S.life;tmE.textContent=Math.max(0,Math.ceil(S.time))}
-function layout(){const r=B.getBoundingClientRect();S.w=r.width;S.h=r.height;P.style.transform=box(S.px,S.py);T.style.transform=box(S.tx,S.ty);S.H.forEach(h=>h.e.style.transform=box(h.x,h.y))}
-function pause(t='Paused',m=''){S.run=false;pBtn.textContent='▶ Resume';oh.textContent=t;om.textContent=m;O.style.display='grid'}
-function run(){S.run=true;pBtn.textContent='⏸ Pause';O.style.display='none'}
-function toggle(){S.run?pause():run()}
-function win(){S.run=false;beep(880,.08);beep(1180,.08);pause('You Win!',`Score ${S.score} • Level ${S.lv}`)}
-function lose(){S.run=false;beep(180,.12);pause('Game Over',`Score ${S.score} • Level ${S.lv}`)}
-function reset(){S.H.forEach(h=>h.e.remove());S.H.length=0;Object.assign(S,{score:0,lv:1,life:3,time:60,px:100,py:100});const p=place();S.tx=p.x;S.ty=p.y;for(let i=0;i<3;i++)S.H.push(hazard(1));hud();layout();run();beep(800,.05)}
-function step(now){
-  if(!S.run){S.last=now;return requestAnimationFrame(step)}
-  const dt=Math.min(.033,(now-S.last)/1000);S.last=now;S.time-=dt;if(S.time<=0)return win();
-  let dx=0,dy=0;S.keys.has('up')&&dy--;S.keys.has('down')&&dy++;S.keys.has('left')&&dx--;S.keys.has('right')&&dx++;
-  if(dx||dy){const L=Math.hypot(dx,dy)||1;S.px+=S.v*(dx/L)*dt;S.py+=S.v*(dy/L)*dt}S.px=clamp(S.px,0,S.w-S.s);S.py=clamp(S.py,0,S.h-S.s);
-  S.H.forEach(h=>{h.x+=h.vx*dt;h.y+=h.vy*dt;if(h.x<0||h.x>S.w-h.s)h.vx*=-1,h.x=clamp(h.x,0,S.w-h.s);if(h.y<0||h.y>S.h-h.s)h.vy*=-1,h.y=clamp(h.y,0,S.h-h.s)});
-  if(hit(S.px,S.py,S.s,S.tx,S.ty,S.s)){S.score+=10;beep(950,.06);const p=place();S.tx=p.x;S.ty=p.y;const n=Math.floor(S.score/30)+1;if(n>S.lv){S.lv=n;S.H.push(hazard(1+.15*(S.lv-1)));S.H.forEach(h=>{h.vx*=1.05;h.vy*=1.05});S.time=Math.min(120,S.time+5)}} 
-  for(const h of S.H){if(hit(S.px,S.py,S.s,h.x,h.y,h.s)){S.life--;beep(220,.08);S.px=10;S.py=10;if(S.life<=0)return lose();break}}
-  hud();layout();requestAnimationFrame(step)
-}
-layout();reset();requestAnimationFrame(step);
-})();
+  function saveData(){
+    localStorage.setItem("goals", JSON.stringify(goals));
+    localStorage.setItem("progress", JSON.stringify(progress));
+    ["rangeLength","trackMode","sortMode","yearSelect","monthSelect","personFilter"].forEach(id=>{
+      localStorage.setItem(id, document.getElementById(id).value);
+    });
+    localStorage.setItem("darkMode", document.body.classList.contains("dark")?"1":"0");
+  }
+
+  function toggleDark(){
+    document.body.classList.toggle("dark");
+    saveData();
+  }
+
+  function addGoal(){
+    const name=document.getElementById("newGoalInput").value.trim();
+    const person=document.getElementById("personInput").value.trim();
+    if(!name||!person) return;
+    goals.push({name,person});
+    document.getElementById("newGoalInput").value="";
+    document.getElementById("personInput").value="";
+    saveData(); renderTable();
+  }
+
+  function deleteGoal(index){
+    for(let key in progress){ if(progress[key][index]) progress[key].splice(index,1); }
+    goals.splice(index,1);
+    saveData(); renderTable();
+  }
+
+  function editGoal(index){
+    const name=prompt("Rename goal:", goals[index].name);
+    if(name===null) return;
+    const person=prompt("Change person:", goals[index].person);
+    if(person===null) return;
+    goals[index].name=name.trim()||goals[index].name;
+    goals[index].person=person.trim()||goals[index].person;
+    saveData(); renderTable();
+  }
+
+  function toggleStatus(goalIndex, unitKey){
+    const mode=document.getElementById("trackMode").value;
+    const month=document.getElementById("monthSelect").value;
+    const year=document.getElementById("yearSelect").value;
+    const key=mode==="year"?`year-${unitKey}`:`${mode}-${year}-${month}`;
+    if(!progress[key]) progress[key]=[];
+    if(!progress[key][goalIndex]) progress[key][goalIndex]={};
+    const current=progress[key][goalIndex][unitKey];
+    progress[key][goalIndex][unitKey]= current==="✔" ? "✘" : current==="✘" ? "" : "✔";
+    saveData(); renderTable();
+  }
+
+  function getGoalPercent(index, mode, year, month){
+    let count=0,total=0;
+    for(let key in progress){
+      if(!progress[key][index]) continue;
+      if(!key.startsWith(mode)) continue;
+      if(!key.includes(year)) continue;
+      if(mode!=="year" && !key.includes(month)) continue;
+      for(let d in progress[key][index]){
+        if(progress[key][index][d]==="✔") count++;
+        total++;
+      }
+    }
+    return total? {percent:Math.round((count/total)*100),count,total}:{percent:0,count:0,total:0};
+  }
+
+  function exportData(){
+    const blob=new Blob([JSON.stringify({goals,progress},null,2)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="kidzgoal-backup.json"; a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function importData(e){
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const data=JSON.parse(reader.result);
+        if(data.goals&&data.progress){
+          goals=data.goals; progress=data.progress;
+          saveData(); renderTable();
+        } else alert("Invalid backup");
+      } catch{ alert("Could not read file"); }
+    };
+    reader.readAsText(file);
+  }
+
+  function renderTable(){
+    const mode=document.getElementById("trackMode").value;
+    const sort=document.getElementById("sortMode").value;
+    const person=document.getElementById("personFilter").value;
+    const month=document.getElementById("monthSelect").value;
+    const year=document.getElementById("yearSelect").value;
+    const range=parseInt(document.getElementById("rangeLength").value);
+    const tableDiv=document.getElementById("trackerTable");
+
+    const uniquePeople=[...new Set(goals.map(g=>g.person))];
+    const filter=document.getElementById("personFilter");
+    filter.innerHTML='<option value="">All</option>'+uniquePeople.map(p=>`<option value="${p}">${p}</option>`).join('');
+    filter.value=person;
+
+    let goalList=goals.map((g,i)=>({...g,index:i}));
+    if(person) goalList=goalList.filter(g=>g.person===person);
+    if(sort!=="none") goalList.sort((a,b)=>getGoalPercent(b.index,sort,year,month).percent - getGoalPercent(a.index,sort,year,month).percent);
+
+    let html="<table><thead><tr><th>Goal</th>";
+    let unitKeys=[];
+    if(mode==="day"){ const days=new Date(year,parseInt(month),0).getDate();
+      for(let d=1;d<=Math.min(range,days);d++){html+=`<th>${d}</th>`;unitKeys.push(d);}
+    } else if(mode==="week"){ for(let w=1;w<=Math.min(range,6);w++){html+=`<th>W${w}</th>`;unitKeys.push(`W${w}`);} }
+    else if(mode==="month"){ for(let m=1;m<=Math.min(range,12);m++){const mm=m.toString().padStart(2,'0'); html+=`<th>${mm}</th>`; unitKeys.push(mm);} }
+    else if(mode==="year"){ for(let y=0;y<range;y++){const yr=parseInt(year)+y; html+=`<th>${yr}</th>`; unitKeys.push(yr);} }
+    html+="<th>Progress</th><th>Edit</th><th>Delete</th></tr></thead><tbody>";
+
+    goalList.forEach(g=>{
+      html+=`<tr><td>${g.name} <small class="muted">(${g.person})</small></td>`;
+      unitKeys.forEach(k=>{
+        const key=mode==="year"?`year-${k}`:`${mode}-${year}-${month}`;
+        const val=(progress[key]&&progress[key][g.index]&&progress[key][g.index][k])||"";
+        const cls=val==="✔"?"done":val==="✘"?"notdone":"";
+        html+=`<td class="${cls}" onclick="toggleStatus(${g.index},'${k}')">${val}</td>`;
+      });
+      const {count,total,percent}=getGoalPercent(g.index, sort==="none"?mode:sort, year, month);
+      html+=`<td><div class="bar"><span style="width:${percent}%"></span></div><div class="muted">${count}/${total} (${percent}%)</div></td>`;
+      html+=`<td><button onclick="editGoal(${g.index})">✏️</button></td>`;
+      html+=`<td><button onclick="deleteGoal(${g.index})">🗑️</button></td></tr>`;
+    });
+    html+="</tbody></table>";
+    tableDiv.innerHTML=html;
+  }
+
+  (function init(){
+    const currentYear=new Date().getFullYear();
+    for(let y=2000;y<=currentYear+5;y++){
+      const opt=document.createElement("option"); opt.value=y;
+      document.getElementById("yearOptions").appendChild(opt);
+    }
+    loadSavedSettings(); renderTable();
+  })();
 </script>
-</body></html>
+</body>
+</html>
